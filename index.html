@@ -7,15 +7,13 @@
   
   <!-- FullCalendar CSS & JS -->
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-  <!-- Tailwind CSS for Responsive UI -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Add To Calendar Button Widget (v5 JS Script) -->
-  <script src="https://cdn.jsdelivr.net/npm/add-to-calendar-button@5" async defer></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-3 md:p-6">
 
   <script>
-    // REPLACE THIS WITH YOUR GOOGLE CLOUD RUN TRIGGER URL
+    // YOUR GOOGLE CLOUD RUN TRIGGER URL
     const API_BASE_URL = "https://discord-events-260794370354.us-central1.run.app";
   </script>
 
@@ -27,7 +25,7 @@
     </button>
   </div>
 
-  <!-- Calendar Container -->
+  <!-- Calendar Grid -->
   <div class="max-w-6xl mx-auto bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-2xl">
     <div id="calendar"></div>
   </div>
@@ -38,19 +36,19 @@
       <h2 id="modalTitle" class="text-xl font-bold text-white"></h2>
       <p id="modalLocation" class="text-xs text-indigo-400 font-semibold uppercase tracking-wider"></p>
       
-      <!-- Framed & Scrollable Text Description Area -->
+      <!-- Description Box -->
       <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-2 space-y-3">
-        <!-- Direct Discord Event RSVP (Opens in a NEW tab) -->
-        <a id="rsvpBtn" target="_blank" rel="noopener noreferrer" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
-          RSVP in Discord
-        </a>
+        <!-- RSVP in Discord App / Browser -->
+        <button id="rsvpBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow">
+          Open in Discord
+        </button>
 
-        <!-- Add to Personal Calendar Option -->
-        <div class="flex flex-col items-center pt-2 space-y-2">
-          <span class="text-xs text-gray-400">Save to personal schedule:</span>
-          <div id="addToCalContainer" class="w-full flex justify-center min-h-[45px]"></div>
+        <!-- Dynamic Personal Calendar Export Links -->
+        <div class="pt-2">
+          <span class="block text-xs text-gray-400 text-center mb-2">Save to personal schedule:</span>
+          <div id="exportLinksContainer" class="grid grid-cols-2 gap-2 text-center"></div>
         </div>
       </div>
       
@@ -147,37 +145,60 @@
       const rawDesc = event.extendedProps.description || '';
       document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
 
-      const rsvpUrl = event.extendedProps.rsvpUrl;
+      // --- 1. DISCORD APP DEEP LINKING FIX ---
+      const rsvpUrl = event.extendedProps.rsvpUrl || '';
       const rsvpBtn = document.getElementById('rsvpBtn');
-      rsvpBtn.href = rsvpUrl || '#';
+      
+      rsvpBtn.onclick = function() {
+        if (!rsvpUrl) return;
+        
+        // Extract Guild & Event ID from https://discord.com/events/GUILD_ID/EVENT_ID
+        const match = rsvpUrl.match(/discord\.com\/events\/(\d+)\/(\d+)/);
+        if (match) {
+          const guildId = match[1];
+          const eventId = match[2];
+          // Protocol URI that forces native app execution on PC, iOS, and Android
+          const appUri = `discord://discord.com/events/${guildId}/${eventId}`;
+          
+          // Trigger protocol attempt in hidden frame
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = appUri;
+          document.body.appendChild(iframe);
+          
+          // Fallback: Open web version in NEW tab after 500ms if app isn't installed
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.open(rsvpUrl, '_blank', 'noopener,noreferrer');
+          }, 500);
+        } else {
+          window.open(rsvpUrl, '_blank', 'noopener,noreferrer');
+        }
+      };
 
-      const startDate = event.start ? event.start.toISOString().split('T')[0] : '';
-      const startTime = event.start ? event.start.toTimeString().split(' ')[0].substring(0, 5) : '';
-      const endDate = event.end ? event.end.toISOString().split('T')[0] : startDate;
-      const endTime = event.end ? event.end.toTimeString().split(' ')[0].substring(0, 5) : startTime;
-      const cleanDesc = rawDesc.replace(/"/g, '&quot;').replace(/\n/g, ' ');
+      // --- 2. RELIABLE PERSONAL CALENDAR EXPORT FIX ---
+      const startDate = event.start ? event.start.toISOString().replace(/-|:|\.\d\d\d/g, "") : '';
+      const endDate = event.end ? event.end.toISOString().replace(/-|:|\.\d\d\d/g, "") : startDate;
+      const title = encodeURIComponent(event.title);
+      const desc = encodeURIComponent(rawDesc);
+      const loc = encodeURIComponent(event.extendedProps.location);
 
-      const calContainer = document.getElementById('addToCalContainer');
-      calContainer.innerHTML = `
-        <add-to-calendar-button
-          name="${event.title}"
-          description="${cleanDesc}"
-          location="${event.extendedProps.location}"
-          startDate="${startDate}"
-          startTime="${startTime}"
-          endDate="${endDate}"
-          endTime="${endTime}"
-          options="'Google','Apple','Outlook.com','iCal'"
-          timeZone="currentBrowser"
-          buttonStyle="round"
-          lightMode="dark"
-        ></add-to-calendar-button>
+      // Direct Google Calendar Link
+      const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${loc}`;
+      
+      // Dynamic iCal / Apple Calendar Download Blob
+      const icsData = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${event.title}\nDESCRIPTION:${rawDesc.replace(/\n/g, '\\n')}\nLOCATION:${event.extendedProps.location}\nDTSTART:${startDate}\nDTEND:${endDate}\nEND:VEVENT\nEND:VCALENDAR`;
+      const icsBlobUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(icsData)}`;
+
+      const exportContainer = document.getElementById('exportLinksContainer');
+      exportContainer.innerHTML = `
+        <a href="${googleCalUrl}" target="_blank" rel="noopener noreferrer" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-3 rounded text-indigo-300 font-medium border border-gray-600">
+          + Google Calendar
+        </a>
+        <a href="${icsBlobUrl}" download="${event.title.replace(/\s+/g, '_')}.ics" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-3 rounded text-indigo-300 font-medium border border-gray-600">
+          + Apple / iCal (.ics)
+        </a>
       `;
-
-      // Trigger the Web Component initialization hook explicitly
-      if (window.atcb_init) {
-        window.atcb_init();
-      }
 
       document.getElementById('eventModal').classList.remove('hidden');
     }
