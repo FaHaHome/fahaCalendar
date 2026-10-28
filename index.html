@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community Calendar</title>
+  
+  <!-- FullCalendar CSS & JS -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+  <!-- Tailwind CSS for Responsive UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Add To Calendar Button Widget (Mobile Personal Calendar Fix) -->
+  <script src="https://cdn.jsdelivr.net/npm/add-to-calendar-button@5" async defer></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-3 md:p-6">
+
+  <script>
+    // REPLACE THIS WITH YOUR GOOGLE CLOUD RUN TRIGGER URL
+    const API_BASE_URL = "https://YOUR-TRIGGER-URL.a.run.app";
+  </script>
+
+  <!-- Header -->
+  <div class="max-w-6xl mx-auto flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold tracking-tight text-white">Community Calendar</h1>
+    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium shadow transition">
+      + Create Event
+    </button>
+  </div>
+
+  <!-- Calendar Container -->
+  <div class="max-w-6xl mx-auto bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-2xl">
+    <div id="calendar"></div>
+  </div>
+
+  <!-- Event Details / RSVP / Add-to-Calendar Modal -->
+  <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
+      <h2 id="modalTitle" class="text-xl font-bold text-white"></h2>
+      <p id="modalLocation" class="text-xs text-indigo-400 font-semibold uppercase tracking-wider"></p>
+      <p id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap"></p>
+      
+      <div class="pt-2 space-y-3">
+        <!-- Direct Discord Event RSVP -->
+        <a id="rsvpBtn" target="_blank" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow">
+          RSVP in Discord
+        </a>
+
+        <!-- Add to Personal Calendar (Mobile Fix) -->
+        <div class="flex justify-center pt-2">
+          <div id="addToCalContainer"></div>
+        </div>
+      </div>
+      
+      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm transition">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- Create Event Modal (Add via Grid) -->
+  <div id="createModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
+      <h2 class="text-xl font-bold text-white">Schedule New Event</h2>
+      
+      <form id="createEventForm" onsubmit="handleCreateEvent(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Event Title</label>
+          <input type="text" id="eventTitle" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Description</label>
+          <textarea id="eventDesc" rows="2" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Start Time</label>
+            <input type="datetime-local" id="startTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">End Time</label>
+            <input type="datetime-local" id="endTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Location / Channel Link</label>
+          <input type="text" id="eventLocation" placeholder="e.g. #general or Voice Channel" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeModal('createModal')" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm">Cancel</button>
+          <button type="submit" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-semibold">Publish to Discord</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let calendar;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const calendarEl = document.getElementById('calendar');
+      
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: window.innerWidth < 768 ? 'listMonth' : 'dayGridMonth',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,listMonth'
+        },
+        selectable: true,
+        events: API_BASE_URL,
+        
+        select: function(info) {
+          document.getElementById('startTime').value = info.startStr.slice(0, 16);
+          openCreateModal();
+        },
+        
+        eventClick: function(info) {
+          showEventDetails(info.event);
+        }
+      });
+      
+      calendar.render();
+    });
+
+    function showEventDetails(event) {
+      document.getElementById('modalTitle').innerText = event.title;
+      document.getElementById('modalLocation').innerText = event.extendedProps.location;
+      document.getElementById('modalDescription').innerText = event.extendedProps.description || 'No description provided.';
+      document.getElementById('rsvpBtn').href = event.extendedProps.rsvpUrl;
+
+      const calContainer = document.getElementById('addToCalContainer');
+      calContainer.innerHTML = `
+        <add-to-calendar-button
+          name="${event.title}"
+          description="${event.extendedProps.description}"
+          startDate="${event.start.toISOString().split('T')[0]}"
+          startTime="${event.start.toTimeString().split(' ')[0].substring(0,5)}"
+          endDate="${event.end ? event.end.toISOString().split('T')[0] : event.start.toISOString().split('T')[0]}"
+          endTime="${event.end ? event.end.toTimeString().split(' ')[0].substring(0,5) : event.start.toTimeString().split(' ')[0].substring(0,5)}"
+          options="'Google','Apple','Outlook.com','iCal'"
+          timeZone="currentBrowser"
+          buttonStyle="round"
+          lightMode="dark"
+        ></add-to-calendar-button>
+      `;
+
+      document.getElementById('eventModal').classList.remove('hidden');
+    }
+
+    async function handleCreateEvent(e) {
+      e.preventDefault();
+      
+      const payload = {
+        name: document.getElementById('eventTitle').value,
+        description: document.getElementById('eventDesc').value,
+        startTime: new Date(document.getElementById('startTime').value).toISOString(),
+        endTime: new Date(document.getElementById('endTime').value).toISOString(),
+        location: document.getElementById('eventLocation').value
+      };
+
+      const res = await fetch(API_BASE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        closeModal('createModal');
+        calendar.refetchEvents();
+        document.getElementById('createEventForm').reset();
+      } else {
+        alert('Error creating event. Check server logs.');
+      }
+    }
+
+    function openCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+  </script>
+</body>
+</html>
