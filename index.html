@@ -42,15 +42,15 @@
       <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-2 space-y-3">
-        <!-- Direct Discord Event RSVP (Launches App with Browser Fallback) -->
-        <a id="rsvpBtn" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
+        <!-- Direct Discord Event RSVP (Opens in Dedicated Window / App) -->
+        <a id="rsvpBtn" target="_blank" rel="noopener noreferrer" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
           RSVP in Discord
         </a>
 
         <!-- Add to Personal Calendar Option -->
-        <div class="flex flex-col items-center pt-2 space-y-1">
+        <div class="flex flex-col items-center pt-2 space-y-2">
           <span class="text-xs text-gray-400">Save to personal schedule:</span>
-          <div id="addToCalContainer"></div>
+          <div id="addToCalContainer" class="w-full flex justify-center min-h-[45px]"></div>
         </div>
       </div>
       
@@ -137,9 +137,9 @@
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         // Italic formatting *text* or _text_
         .replace(/(\*|_)(.*?)\1/g, '<em>$2</em>')
-        // Convert Discord markdown links [Text](URL) -> <a href="URL">Text</a>
+        // Convert Discord markdown links [Text](URL) -> <a href="URL" target="_blank">Text</a>
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
-        // Convert Discord raw enclosed links <URL> -> <a href="URL">URL</a>
+        // Convert Discord raw enclosed links <URL> -> <a href="URL" target="_blank">URL</a>
         .replace(/<(https?:\/\/[^>]+)>/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
         // Convert standalone URLs
         .replace(/(^|[^"])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$2</a>');
@@ -153,19 +153,23 @@
       const rawDesc = event.extendedProps.description || '';
       document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
 
-      // 2. Launch Discord App with Browser Fallback
+      // 2. RSVP Deep Link handling (Launches desktop/mobile app or opens web in new window)
       const rsvpUrl = event.extendedProps.rsvpUrl;
       const deepLinkUrl = rsvpUrl ? rsvpUrl.replace('https://discord.com/', 'discord://discord.com/') : '#';
       const rsvpBtn = document.getElementById('rsvpBtn');
-      rsvpBtn.href = deepLinkUrl;
       
-      rsvpBtn.onclick = function() {
+      rsvpBtn.onclick = function(e) {
+        e.preventDefault();
+        // Attempt desktop app protocol launch
+        window.location.href = deepLinkUrl;
+        
+        // Fallback: Open web version in a NEW tab/window if the desktop app doesn't intercept
         setTimeout(() => {
-          window.location.href = rsvpUrl;
-        }, 1500);
+          window.open(rsvpUrl, '_blank', 'noopener,noreferrer');
+        }, 800);
       };
 
-      // 3. Add to Personal Calendar Button Integration
+      // 3. Add to Personal Calendar Button Integration (Explicit Render Fix)
       const startDate = event.start ? event.start.toISOString().split('T')[0] : '';
       const startTime = event.start ? event.start.toTimeString().split(' ')[0].substring(0, 5) : '';
       const endDate = event.end ? event.end.toISOString().split('T')[0] : startDate;
@@ -187,6 +191,11 @@
           lightMode="dark"
         ></add-to-calendar-button>
       `;
+
+      // Trigger button renderer manually for dynamically added elements
+      if (window.atcb_action) {
+        window.atcb_action();
+      }
 
       document.getElementById('eventModal').classList.remove('hidden');
     }
