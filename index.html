@@ -39,7 +39,7 @@
         font-size: 0.65rem !important;
         padding: 1px 2px !important;
         border-radius: 3px !important;
-        pointer-events: none; /* Route all clicks on mobile directly to the day cell */
+        pointer-events: none;
       }
       .fc-col-header-cell-cushion {
         font-size: 0.7rem !important;
@@ -68,7 +68,7 @@
     <div id="calendar"></div>
   </div>
 
-  <!-- DAY OVERVIEW MODAL (Step 1: Displays all events for the tapped day) -->
+  <!-- DAY OVERVIEW MODAL (Step 1) -->
   <div id="dayModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <div class="flex justify-between items-center border-b border-gray-700 pb-2">
@@ -76,7 +76,6 @@
         <button onclick="closeModal('dayModal')" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
       </div>
       
-      <!-- Event List for Selected Day -->
       <div id="dayEventsList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
 
       <div class="flex gap-2 pt-2">
@@ -90,22 +89,19 @@
     </div>
   </div>
 
-  <!-- EVENT DETAILS / RSVP MODAL (Step 2: Selected event details) -->
+  <!-- EVENT DETAILS / RSVP MODAL (Step 2) -->
   <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 id="modalTitle" class="text-lg sm:text-xl font-bold text-white"></h2>
       <p id="modalLocation" class="text-xs text-indigo-400 font-semibold uppercase tracking-wider"></p>
       
-      <!-- Description Box -->
       <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-52 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-1 space-y-3">
-        <!-- RSVP in Discord -->
         <button id="rsvpBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 rounded-lg transition shadow text-sm">
           Open in Discord
         </button>
 
-        <!-- Personal Calendar Export Links -->
         <div class="pt-1">
           <span class="block text-xs text-gray-400 text-center mb-2">Save to personal schedule:</span>
           <div id="exportLinksContainer" class="grid grid-cols-2 gap-2 text-center"></div>
@@ -181,9 +177,21 @@
           right: 'today'
         },
         selectable: true,
-        events: API_BASE_URL,
 
-        // Route ALL day/event clicks through the Day Overview Modal
+        // Direct fetch wrapper to eliminate extra query parameters
+        events: function(fetchInfo, successCallback, failureCallback) {
+          fetch(API_BASE_URL)
+            .then(response => {
+              if (!response.ok) throw new Error('API response failed');
+              return response.json();
+            })
+            .then(data => successCallback(data))
+            .catch(error => {
+              console.error("Error loading events:", error);
+              failureCallback(error);
+            });
+        },
+
         dateClick: function(info) {
           openDayModal(info.dateStr);
         },
@@ -208,7 +216,6 @@
       });
       document.getElementById('dayModalTitle').innerText = formattedDate;
 
-      // Filter events occurring on the selected day
       const allEvents = calendar.getEvents();
       currentDayEvents = allEvents.filter(ev => {
         if (!ev.start) return false;
@@ -340,7 +347,6 @@
       const startTimeRaw = document.getElementById('startTime').value;
       const endTimeRaw = document.getElementById('endTime').value;
 
-      // Robust ISO 8601 formatting for Google Cloud Run / Discord API
       const payload = {
         name: document.getElementById('eventTitle').value,
         description: document.getElementById('eventDesc').value || '',
@@ -362,10 +368,10 @@
           document.getElementById('createEventForm').reset();
         } else {
           const errData = await res.json().catch(() => ({}));
-          alert(`Error publishing event: ${errData.error || 'Check server logs'}`);
+          alert(`Error publishing event: ${errData.error || 'Check backend logs'}`);
         }
       } catch (err) {
-        alert('Network error while reaching Google Cloud backend.');
+        alert('Network error reaching backend.');
       } finally {
         submitBtn.disabled = false;
         submitBtn.innerText = "Publish to Discord";
