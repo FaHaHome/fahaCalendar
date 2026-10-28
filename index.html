@@ -11,7 +11,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* Mobile CSS Adjustments to Maximize Screen Real Estate */
+    /* Mobile Layout Optimizations */
     @media (max-width: 767px) {
       .fc .fc-toolbar {
         flex-direction: column;
@@ -26,11 +26,11 @@
         font-size: 0.75rem !important;
       }
       .fc-daygrid-day-frame {
-        min-height: 55px !important;
-        padding: 1px !important;
+        min-height: 50px !important;
+        padding: 2px !important;
       }
       .fc-daygrid-day-number {
-        font-size: 0.7rem !important;
+        font-size: 0.75rem !important;
         padding: 2px !important;
       }
       .fc-event {
@@ -60,12 +60,34 @@
     </button>
   </div>
 
-  <!-- Calendar Container (Expanded Height for Mobile) -->
+  <!-- Calendar Container -->
   <div class="max-w-7xl mx-auto bg-gray-800 p-2 sm:p-4 rounded-xl border border-gray-700 shadow-2xl">
     <div id="calendar"></div>
   </div>
 
-  <!-- Event Details / RSVP / Add-to-Calendar Modal -->
+  <!-- DAY OVERVIEW MODAL (Mobile First Step) -->
+  <div id="dayModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
+      <div class="flex justify-between items-center border-b border-gray-700 pb-2">
+        <h2 id="dayModalTitle" class="text-lg font-bold text-white"></h2>
+        <button onclick="closeModal('dayModal')" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+      </div>
+      
+      <!-- Event List for Selected Day -->
+      <div id="dayEventsList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="openCreateModalFromDay()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs sm:text-sm font-medium transition">
+          + Add Event to This Day
+        </button>
+        <button onclick="closeModal('dayModal')" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVENT DETAILS / RSVP MODAL (Second Step) -->
   <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 id="modalTitle" class="text-lg sm:text-xl font-bold text-white"></h2>
@@ -87,13 +109,18 @@
         </div>
       </div>
       
-      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm transition mt-1">
-        Close
-      </button>
+      <div class="flex gap-2 mt-1">
+        <button id="backToDayBtn" onclick="backToDayModal()" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm transition">
+          &larr; Back to Day
+        </button>
+        <button onclick="closeModal('eventModal')" class="w-1/2 bg-gray-600 hover:bg-gray-500 text-gray-200 py-2 rounded-lg text-xs sm:text-sm transition">
+          Close
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Create Event Modal -->
+  <!-- CREATE EVENT MODAL -->
   <div id="createModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 class="text-lg sm:text-xl font-bold text-white">Schedule New Event</h2>
@@ -135,14 +162,16 @@
 
   <script>
     let calendar;
+    let selectedDateStr = '';
+    let currentDayEvents = [];
 
     document.addEventListener('DOMContentLoaded', function() {
       const calendarEl = document.getElementById('calendar');
       
       calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth', // Forces month view across all screens
-        height: window.innerWidth < 768 ? 'auto' : 750, // Auto-expand height on mobile
-        dayMaxEvents: window.innerWidth < 768 ? 2 : true, // Show up to 2 events per day before (+more)
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        dayMaxEvents: false, // Ensure all events are rendered inside day blocks
         headerToolbar: {
           left: 'prev,next',
           center: 'title',
@@ -150,19 +179,72 @@
         },
         selectable: true,
         events: API_BASE_URL,
-        
-        select: function(info) {
-          document.getElementById('startTime').value = info.startStr.slice(0, 16);
-          openCreateModal();
+
+        // Day click/select triggers the Day Overview Modal
+        dateClick: function(info) {
+          openDayModal(info.dateStr);
         },
         
         eventClick: function(info) {
+          info.jsEvent.preventDefault();
           showEventDetails(info.event);
         }
       });
       
       calendar.render();
     });
+
+    function openDayModal(dateStr) {
+      selectedDateStr = dateStr;
+      const formattedDate = new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { 
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
+      });
+      document.getElementById('dayModalTitle').innerText = formattedDate;
+
+      // Filter events occurring on the selected date
+      const allEvents = calendar.getEvents();
+      currentDayEvents = allEvents.filter(ev => {
+        const evStart = ev.start.toISOString().split('T')[0];
+        return evStart === dateStr;
+      });
+
+      const listContainer = document.getElementById('dayEventsList');
+      if (currentDayEvents.length === 0) {
+        listContainer.innerHTML = `<p class="text-gray-400 text-xs italic py-3 text-center">No events scheduled for this day.</p>`;
+      } else {
+        listContainer.innerHTML = currentDayEvents.map((ev, index) => {
+          const timeStr = ev.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return `
+            <div onclick="selectEventFromDay(${index})" class="bg-gray-900 hover:bg-gray-700/80 p-3 rounded-lg border border-gray-700 cursor-pointer transition flex justify-between items-center">
+              <div>
+                <p class="text-sm font-semibold text-white">${ev.title}</p>
+                <p class="text-xs text-indigo-400">${ev.extendedProps.location || 'Discord'}</p>
+              </div>
+              <span class="text-xs text-gray-400 font-mono bg-gray-800 px-2 py-1 rounded border border-gray-700">${timeStr}</span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('dayModal').classList.remove('hidden');
+    }
+
+    function selectEventFromDay(index) {
+      closeModal('dayModal');
+      showEventDetails(currentDayEvents[index], true);
+    }
+
+    function backToDayModal() {
+      closeModal('eventModal');
+      document.getElementById('dayModal').classList.remove('hidden');
+    }
+
+    function openCreateModalFromDay() {
+      closeModal('dayModal');
+      document.getElementById('startTime').value = `${selectedDateStr}T12:00`;
+      document.getElementById('endTime').value = `${selectedDateStr}T13:00`;
+      openCreateModal();
+    }
 
     function parseDiscordMarkdown(text) {
       if (!text) return 'No description provided.';
@@ -175,7 +257,7 @@
         .replace(/(^|[^"])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$2</a>');
     }
 
-    function showEventDetails(event) {
+    function showEventDetails(event, fromDayModal = false) {
       document.getElementById('modalTitle').innerText = event.title;
       document.getElementById('modalLocation').innerText = event.extendedProps.location;
 
@@ -215,7 +297,6 @@
       const loc = encodeURIComponent(event.extendedProps.location);
 
       const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${loc}`;
-      
       const icsData = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${event.title}\nDESCRIPTION:${rawDesc.replace(/\n/g, '\\n')}\nLOCATION:${event.extendedProps.location}\nDTSTART:${startDate}\nDTEND:${endDate}\nEND:VEVENT\nEND:VCALENDAR`;
       const icsBlobUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(icsData)}`;
 
@@ -228,6 +309,14 @@
           + Apple / iCal
         </a>
       `;
+
+      // Show or hide the "Back to Day" button depending on how the modal was opened
+      const backBtn = document.getElementById('backToDayBtn');
+      if (fromDayModal) {
+        backBtn.classList.remove('hidden');
+      } else {
+        backBtn.classList.add('hidden');
+      }
 
       document.getElementById('eventModal').classList.remove('hidden');
     }
