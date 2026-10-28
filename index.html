@@ -42,7 +42,7 @@
       <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-2 space-y-3">
-        <!-- Direct Discord Event RSVP (Opens in a NEW window/tab unconditionally) -->
+        <!-- Direct Discord Event RSVP (Opens in a NEW tab) -->
         <a id="rsvpBtn" target="_blank" rel="noopener noreferrer" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
           RSVP in Discord
         </a>
@@ -147,13 +147,10 @@
       const rawDesc = event.extendedProps.description || '';
       document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
 
-      // RSVP Link Fix: Direct anchor href with target="_blank" guarantees launching a new window/tab
       const rsvpUrl = event.extendedProps.rsvpUrl;
       const rsvpBtn = document.getElementById('rsvpBtn');
       rsvpBtn.href = rsvpUrl || '#';
-      rsvpBtn.onclick = null; // Remove dynamic click handlers to ensure default target="_blank" behavior runs
 
-      // Calendar Button Fix: Standard HTML properties without breaking JS quotes
       const startDate = event.start ? event.start.toISOString().split('T')[0] : '';
       const startTime = event.start ? event.start.toTimeString().split(' ')[0].substring(0, 5) : '';
       const endDate = event.end ? event.end.toISOString().split('T')[0] : startDate;
@@ -177,12 +174,10 @@
         ></add-to-calendar-button>
       `;
 
-      // Explicitly trigger the Web Component renderer after injecting innerHTML
-      setTimeout(() => {
-        if (window.atcb_action) {
-          window.atcb_action();
-        }
-      }, 50);
+      // Trigger the Web Component initialization hook explicitly
+      if (window.atcb_init) {
+        window.atcb_init();
+      }
 
       document.getElementById('eventModal').classList.remove('hidden');
     }
