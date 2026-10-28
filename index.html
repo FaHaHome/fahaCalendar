@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <!-- Tailwind CSS for Responsive UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Add To Calendar Button Widget (Mobile Personal Calendar Fix) -->
+  <!-- Add To Calendar Button Widget -->
   <script src="https://cdn.jsdelivr.net/npm/add-to-calendar-button@5" async defer></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-3 md:p-6">
@@ -37,21 +37,24 @@
     <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 id="modalTitle" class="text-xl font-bold text-white"></h2>
       <p id="modalLocation" class="text-xs text-indigo-400 font-semibold uppercase tracking-wider"></p>
-      <p id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap"></p>
+      
+      <!-- Framed & Scrollable Text Description Area -->
+      <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-2 space-y-3">
-        <!-- Direct Discord Event RSVP -->
-        <a id="rsvpBtn" target="_blank" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow">
+        <!-- Direct Discord Event RSVP (Launches App with Browser Fallback) -->
+        <a id="rsvpBtn" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
           RSVP in Discord
         </a>
 
-        <!-- Add to Personal Calendar (Mobile Fix) -->
-        <div class="flex justify-center pt-2">
+        <!-- Add to Personal Calendar Option -->
+        <div class="flex flex-col items-center pt-2 space-y-1">
+          <span class="text-xs text-gray-400">Save to personal schedule:</span>
           <div id="addToCalContainer"></div>
         </div>
       </div>
       
-      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm transition">
+      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm transition mt-2">
         Close
       </button>
     </div>
@@ -126,21 +129,58 @@
       calendar.render();
     });
 
+    function parseDiscordMarkdown(text) {
+      if (!text) return 'No description provided.';
+
+      return text
+        // Bold formatting **text**
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Italic formatting *text* or _text_
+        .replace(/(\*|_)(.*?)\1/g, '<em>$2</em>')
+        // Convert Discord markdown links [Text](URL) -> <a href="URL">Text</a>
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
+        // Convert Discord raw enclosed links <URL> -> <a href="URL">URL</a>
+        .replace(/<(https?:\/\/[^>]+)>/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
+        // Convert standalone URLs
+        .replace(/(^|[^"])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$2</a>');
+    }
+
     function showEventDetails(event) {
       document.getElementById('modalTitle').innerText = event.title;
       document.getElementById('modalLocation').innerText = event.extendedProps.location;
-      document.getElementById('modalDescription').innerText = event.extendedProps.description || 'No description provided.';
-      document.getElementById('rsvpBtn').href = event.extendedProps.rsvpUrl;
+
+      // 1. Framed text with Discord Markdown link parsing
+      const rawDesc = event.extendedProps.description || '';
+      document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
+
+      // 2. Launch Discord App with Browser Fallback
+      const rsvpUrl = event.extendedProps.rsvpUrl;
+      const deepLinkUrl = rsvpUrl ? rsvpUrl.replace('https://discord.com/', 'discord://discord.com/') : '#';
+      const rsvpBtn = document.getElementById('rsvpBtn');
+      rsvpBtn.href = deepLinkUrl;
+      
+      rsvpBtn.onclick = function() {
+        setTimeout(() => {
+          window.location.href = rsvpUrl;
+        }, 1500);
+      };
+
+      // 3. Add to Personal Calendar Button Integration
+      const startDate = event.start ? event.start.toISOString().split('T')[0] : '';
+      const startTime = event.start ? event.start.toTimeString().split(' ')[0].substring(0, 5) : '';
+      const endDate = event.end ? event.end.toISOString().split('T')[0] : startDate;
+      const endTime = event.end ? event.end.toTimeString().split(' ')[0].substring(0, 5) : startTime;
 
       const calContainer = document.getElementById('addToCalContainer');
       calContainer.innerHTML = `
         <add-to-calendar-button
           name="${event.title}"
-          description="${event.extendedProps.description}"
-          startDate="${event.start.toISOString().split('T')[0]}"
-          startTime="${event.start.toTimeString().split(' ')[0].substring(0,5)}"
-          endDate="${event.end ? event.end.toISOString().split('T')[0] : event.start.toISOString().split('T')[0]}"
-          endTime="${event.end ? event.end.toTimeString().split(' ')[0].substring(0,5) : event.start.toTimeString().split(' ')[0].substring(0,5)}"
+          description="${rawDesc.replace(/"/g, '&quot;').replace(/\n/g, ' ')}"
+          location="${event.extendedProps.location}"
+          startDate="${startDate}"
+          startTime="${startTime}"
+          endDate="${endDate}"
+          endTime="${endTime}"
           options="'Google','Apple','Outlook.com','iCal'"
           timeZone="currentBrowser"
           buttonStyle="round"
@@ -173,7 +213,7 @@
         calendar.refetchEvents();
         document.getElementById('createEventForm').reset();
       } else {
-        alert('Error creating event. Check server logs.');
+        alert('Error publishing event to Discord.');
       }
     }
 
