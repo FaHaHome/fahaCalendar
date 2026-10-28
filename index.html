@@ -11,35 +11,41 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* Mobile Layout Optimizations */
+    /* Mobile Calendar Fixes */
     @media (max-width: 767px) {
       .fc .fc-toolbar {
         flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem !important;
+        gap: 0.4rem;
+        margin-bottom: 0.4rem !important;
       }
       .fc .fc-toolbar-title {
-        font-size: 1.1rem !important;
+        font-size: 1rem !important;
       }
       .fc .fc-button {
-        padding: 0.25rem 0.5rem !important;
-        font-size: 0.75rem !important;
+        padding: 0.2rem 0.4rem !important;
+        font-size: 0.7rem !important;
       }
       .fc-daygrid-day-frame {
-        min-height: 50px !important;
-        padding: 2px !important;
+        min-height: 48px !important;
+        padding: 1px !important;
+        cursor: pointer;
       }
       .fc-daygrid-day-number {
         font-size: 0.75rem !important;
         padding: 2px !important;
+        font-weight: 600;
+      }
+      /* Ensure event badges/dots stay visible on small screens */
+      .fc-daygrid-event-harness {
+        margin-top: 1px !important;
       }
       .fc-event {
         font-size: 0.65rem !important;
         padding: 1px 2px !important;
-        margin-bottom: 1px !important;
+        border-radius: 3px !important;
       }
       .fc-col-header-cell-cushion {
-        font-size: 0.75rem !important;
+        font-size: 0.7rem !important;
         padding: 2px !important;
       }
     }
@@ -171,7 +177,10 @@
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
-        dayMaxEvents: false, // Ensure all events are rendered inside day blocks
+        dayMaxEvents: window.innerWidth < 768 ? 1 : false, // Render event bar/dot clearly on mobile
+        moreLinkContent: function(args) {
+          return `+${args.num} more`;
+        },
         headerToolbar: {
           left: 'prev,next',
           center: 'title',
@@ -180,14 +189,16 @@
         selectable: true,
         events: API_BASE_URL,
 
-        // Day click/select triggers the Day Overview Modal
+        // Day click opens the Day Overview Modal
         dateClick: function(info) {
           openDayModal(info.dateStr);
         },
         
+        // Direct event click also delegates through the Day Overview Modal
         eventClick: function(info) {
           info.jsEvent.preventDefault();
-          showEventDetails(info.event);
+          const eventDateStr = info.event.start.toISOString().split('T')[0];
+          openDayModal(eventDateStr);
         }
       });
       
@@ -196,16 +207,23 @@
 
     function openDayModal(dateStr) {
       selectedDateStr = dateStr;
-      const formattedDate = new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { 
+      
+      // Parse YYYY-MM-DD safely into local timezone date
+      const parts = dateStr.split('-');
+      const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      const formattedDate = localDate.toLocaleDateString(undefined, { 
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' 
       });
       document.getElementById('dayModalTitle').innerText = formattedDate;
 
-      // Filter events occurring on the selected date
+      // Filter events for the selected date
       const allEvents = calendar.getEvents();
       currentDayEvents = allEvents.filter(ev => {
-        const evStart = ev.start.toISOString().split('T')[0];
-        return evStart === dateStr;
+        if (!ev.start) return false;
+        const evYear = ev.start.getFullYear();
+        const evMonth = String(ev.start.getMonth() + 1).padStart(2, '0');
+        const evDay = String(ev.start.getDate()).padStart(2, '0');
+        return `${evYear}-${evMonth}-${evDay}` === dateStr;
       });
 
       const listContainer = document.getElementById('dayEventsList');
@@ -310,7 +328,6 @@
         </a>
       `;
 
-      // Show or hide the "Back to Day" button depending on how the modal was opened
       const backBtn = document.getElementById('backToDayBtn');
       if (fromDayModal) {
         backBtn.classList.remove('hidden');
