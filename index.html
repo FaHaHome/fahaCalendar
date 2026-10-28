@@ -11,7 +11,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* Mobile Calendar Fixes */
+    /* Mobile Calendar Layout Optimizations */
     @media (max-width: 767px) {
       .fc .fc-toolbar {
         flex-direction: column;
@@ -35,14 +35,11 @@
         padding: 2px !important;
         font-weight: 600;
       }
-      /* Ensure event badges/dots stay visible on small screens */
-      .fc-daygrid-event-harness {
-        margin-top: 1px !important;
-      }
       .fc-event {
         font-size: 0.65rem !important;
         padding: 1px 2px !important;
         border-radius: 3px !important;
+        pointer-events: none; /* Route all clicks on mobile directly to the day cell */
       }
       .fc-col-header-cell-cushion {
         font-size: 0.7rem !important;
@@ -71,7 +68,7 @@
     <div id="calendar"></div>
   </div>
 
-  <!-- DAY OVERVIEW MODAL (Mobile First Step) -->
+  <!-- DAY OVERVIEW MODAL (Step 1: Displays all events for the tapped day) -->
   <div id="dayModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <div class="flex justify-between items-center border-b border-gray-700 pb-2">
@@ -93,7 +90,7 @@
     </div>
   </div>
 
-  <!-- EVENT DETAILS / RSVP MODAL (Second Step) -->
+  <!-- EVENT DETAILS / RSVP MODAL (Step 2: Selected event details) -->
   <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
     <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 id="modalTitle" class="text-lg sm:text-xl font-bold text-white"></h2>
@@ -160,7 +157,7 @@
 
         <div class="flex gap-2 pt-2">
           <button type="button" onclick="closeModal('createModal')" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm">Cancel</button>
-          <button type="submit" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs sm:text-sm font-semibold">Publish to Discord</button>
+          <button type="submit" id="submitEventBtn" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs sm:text-sm font-semibold">Publish to Discord</button>
         </div>
       </form>
     </div>
@@ -177,10 +174,7 @@
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
-        dayMaxEvents: window.innerWidth < 768 ? 1 : false, // Render event bar/dot clearly on mobile
-        moreLinkContent: function(args) {
-          return `+${args.num} more`;
-        },
+        dayMaxEvents: true,
         headerToolbar: {
           left: 'prev,next',
           center: 'title',
@@ -189,12 +183,11 @@
         selectable: true,
         events: API_BASE_URL,
 
-        // Day click opens the Day Overview Modal
+        // Route ALL day/event clicks through the Day Overview Modal
         dateClick: function(info) {
           openDayModal(info.dateStr);
         },
         
-        // Direct event click also delegates through the Day Overview Modal
         eventClick: function(info) {
           info.jsEvent.preventDefault();
           const eventDateStr = info.event.start.toISOString().split('T')[0];
@@ -208,7 +201,6 @@
     function openDayModal(dateStr) {
       selectedDateStr = dateStr;
       
-      // Parse YYYY-MM-DD safely into local timezone date
       const parts = dateStr.split('-');
       const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
       const formattedDate = localDate.toLocaleDateString(undefined, { 
@@ -216,7 +208,7 @@
       });
       document.getElementById('dayModalTitle').innerText = formattedDate;
 
-      // Filter events for the selected date
+      // Filter events occurring on the selected day
       const allEvents = calendar.getEvents();
       currentDayEvents = allEvents.filter(ev => {
         if (!ev.start) return false;
@@ -341,26 +333,42 @@
     async function handleCreateEvent(e) {
       e.preventDefault();
       
+      const submitBtn = document.getElementById('submitEventBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Publishing...";
+
+      const startTimeRaw = document.getElementById('startTime').value;
+      const endTimeRaw = document.getElementById('endTime').value;
+
+      // Robust ISO 8601 formatting for Google Cloud Run / Discord API
       const payload = {
         name: document.getElementById('eventTitle').value,
-        description: document.getElementById('eventDesc').value,
-        startTime: new Date(document.getElementById('startTime').value).toISOString(),
-        endTime: new Date(document.getElementById('endTime').value).toISOString(),
-        location: document.getElementById('eventLocation').value
+        description: document.getElementById('eventDesc').value || '',
+        startTime: new Date(startTimeRaw).toISOString(),
+        endTime: new Date(endTimeRaw).toISOString(),
+        location: document.getElementById('eventLocation').value || 'Discord Voice/Text'
       };
 
-      const res = await fetch(API_BASE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const res = await fetch(API_BASE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-      if (res.ok) {
-        closeModal('createModal');
-        calendar.refetchEvents();
-        document.getElementById('createEventForm').reset();
-      } else {
-        alert('Error publishing event to Discord.');
+        if (res.ok) {
+          closeModal('createModal');
+          calendar.refetchEvents();
+          document.getElementById('createEventForm').reset();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(`Error publishing event: ${errData.error || 'Check server logs'}`);
+        }
+      } catch (err) {
+        alert('Network error while reaching Google Cloud backend.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Publish to Discord";
       }
     }
 
