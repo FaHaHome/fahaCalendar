@@ -2,15 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Community Calendar</title>
   
   <!-- FullCalendar CSS & JS -->
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Mobile CSS Adjustments to Maximize Screen Real Estate */
+    @media (max-width: 767px) {
+      .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem !important;
+      }
+      .fc .fc-toolbar-title {
+        font-size: 1.1rem !important;
+      }
+      .fc .fc-button {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.75rem !important;
+      }
+      .fc-daygrid-day-frame {
+        min-height: 55px !important;
+        padding: 1px !important;
+      }
+      .fc-daygrid-day-number {
+        font-size: 0.7rem !important;
+        padding: 2px !important;
+      }
+      .fc-event {
+        font-size: 0.65rem !important;
+        padding: 1px 2px !important;
+        margin-bottom: 1px !important;
+      }
+      .fc-col-header-cell-cushion {
+        font-size: 0.75rem !important;
+        padding: 2px !important;
+      }
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-3 md:p-6">
+<body class="bg-gray-900 text-gray-100 min-h-screen p-1 sm:p-4">
 
   <script>
     // YOUR GOOGLE CLOUD RUN TRIGGER URL
@@ -18,50 +53,50 @@
   </script>
 
   <!-- Header -->
-  <div class="max-w-6xl mx-auto flex justify-between items-center mb-6">
-    <h1 class="text-2xl font-bold tracking-tight text-white">Community Calendar</h1>
-    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium shadow transition">
+  <div class="max-w-7xl mx-auto flex justify-between items-center mb-3 px-2">
+    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">Community Calendar</h1>
+    <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium shadow transition">
       + Create Event
     </button>
   </div>
 
-  <!-- Calendar Grid -->
-  <div class="max-w-6xl mx-auto bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-2xl">
+  <!-- Calendar Container (Expanded Height for Mobile) -->
+  <div class="max-w-7xl mx-auto bg-gray-800 p-2 sm:p-4 rounded-xl border border-gray-700 shadow-2xl">
     <div id="calendar"></div>
   </div>
 
   <!-- Event Details / RSVP / Add-to-Calendar Modal -->
-  <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
-      <h2 id="modalTitle" class="text-xl font-bold text-white"></h2>
+  <div id="eventModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
+      <h2 id="modalTitle" class="text-lg sm:text-xl font-bold text-white"></h2>
       <p id="modalLocation" class="text-xs text-indigo-400 font-semibold uppercase tracking-wider"></p>
       
       <!-- Description Box -->
-      <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
+      <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-52 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
-      <div class="pt-2 space-y-3">
-        <!-- RSVP in Discord App / Browser -->
-        <button id="rsvpBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow">
+      <div class="pt-1 space-y-3">
+        <!-- RSVP in Discord -->
+        <button id="rsvpBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 rounded-lg transition shadow text-sm">
           Open in Discord
         </button>
 
-        <!-- Dynamic Personal Calendar Export Links -->
-        <div class="pt-2">
+        <!-- Personal Calendar Export Links -->
+        <div class="pt-1">
           <span class="block text-xs text-gray-400 text-center mb-2">Save to personal schedule:</span>
           <div id="exportLinksContainer" class="grid grid-cols-2 gap-2 text-center"></div>
         </div>
       </div>
       
-      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm transition mt-2">
+      <button onclick="closeModal('eventModal')" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm transition mt-1">
         Close
       </button>
     </div>
   </div>
 
   <!-- Create Event Modal -->
-  <div id="createModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-    <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
-      <h2 class="text-xl font-bold text-white">Schedule New Event</h2>
+  <div id="createModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
+    <div class="bg-gray-800 p-5 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
+      <h2 class="text-lg sm:text-xl font-bold text-white">Schedule New Event</h2>
       
       <form id="createEventForm" onsubmit="handleCreateEvent(event)" class="space-y-3">
         <div>
@@ -77,11 +112,11 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-xs text-gray-400 mb-1">Start Time</label>
-            <input type="datetime-local" id="startTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <input type="datetime-local" id="startTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1">End Time</label>
-            <input type="datetime-local" id="endTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <input type="datetime-local" id="endTime" required class="w-full bg-gray-900 border border-gray-700 rounded p-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
           </div>
         </div>
 
@@ -91,8 +126,8 @@
         </div>
 
         <div class="flex gap-2 pt-2">
-          <button type="button" onclick="closeModal('createModal')" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm">Cancel</button>
-          <button type="submit" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-semibold">Publish to Discord</button>
+          <button type="button" onclick="closeModal('createModal')" class="w-1/2 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-xs sm:text-sm">Cancel</button>
+          <button type="submit" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-xs sm:text-sm font-semibold">Publish to Discord</button>
         </div>
       </form>
     </div>
@@ -105,11 +140,13 @@
       const calendarEl = document.getElementById('calendar');
       
       calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: window.innerWidth < 768 ? 'listMonth' : 'dayGridMonth',
+        initialView: 'dayGridMonth', // Forces month view across all screens
+        height: window.innerWidth < 768 ? 'auto' : 750, // Auto-expand height on mobile
+        dayMaxEvents: window.innerWidth < 768 ? 2 : true, // Show up to 2 events per day before (+more)
         headerToolbar: {
-          left: 'prev,next today',
+          left: 'prev,next',
           center: 'title',
-          right: 'dayGridMonth,timeGridWeek,listMonth'
+          right: 'today'
         },
         selectable: true,
         events: API_BASE_URL,
@@ -145,28 +182,23 @@
       const rawDesc = event.extendedProps.description || '';
       document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
 
-      // --- 1. DISCORD APP DEEP LINKING FIX ---
       const rsvpUrl = event.extendedProps.rsvpUrl || '';
       const rsvpBtn = document.getElementById('rsvpBtn');
       
       rsvpBtn.onclick = function() {
         if (!rsvpUrl) return;
         
-        // Extract Guild & Event ID from https://discord.com/events/GUILD_ID/EVENT_ID
         const match = rsvpUrl.match(/discord\.com\/events\/(\d+)\/(\d+)/);
         if (match) {
           const guildId = match[1];
           const eventId = match[2];
-          // Protocol URI that forces native app execution on PC, iOS, and Android
           const appUri = `discord://discord.com/events/${guildId}/${eventId}`;
           
-          // Trigger protocol attempt in hidden frame
           const iframe = document.createElement('iframe');
           iframe.style.display = 'none';
           iframe.src = appUri;
           document.body.appendChild(iframe);
           
-          // Fallback: Open web version in NEW tab after 500ms if app isn't installed
           setTimeout(() => {
             document.body.removeChild(iframe);
             window.open(rsvpUrl, '_blank', 'noopener,noreferrer');
@@ -176,27 +208,24 @@
         }
       };
 
-      // --- 2. RELIABLE PERSONAL CALENDAR EXPORT FIX ---
       const startDate = event.start ? event.start.toISOString().replace(/-|:|\.\d\d\d/g, "") : '';
       const endDate = event.end ? event.end.toISOString().replace(/-|:|\.\d\d\d/g, "") : startDate;
       const title = encodeURIComponent(event.title);
       const desc = encodeURIComponent(rawDesc);
       const loc = encodeURIComponent(event.extendedProps.location);
 
-      // Direct Google Calendar Link
       const googleCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${desc}&location=${loc}`;
       
-      // Dynamic iCal / Apple Calendar Download Blob
       const icsData = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${event.title}\nDESCRIPTION:${rawDesc.replace(/\n/g, '\\n')}\nLOCATION:${event.extendedProps.location}\nDTSTART:${startDate}\nDTEND:${endDate}\nEND:VEVENT\nEND:VCALENDAR`;
       const icsBlobUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(icsData)}`;
 
       const exportContainer = document.getElementById('exportLinksContainer');
       exportContainer.innerHTML = `
-        <a href="${googleCalUrl}" target="_blank" rel="noopener noreferrer" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-3 rounded text-indigo-300 font-medium border border-gray-600">
-          + Google Calendar
+        <a href="${googleCalUrl}" target="_blank" rel="noopener noreferrer" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-2 rounded text-indigo-300 font-medium border border-gray-600">
+          + Google
         </a>
-        <a href="${icsBlobUrl}" download="${event.title.replace(/\s+/g, '_')}.ics" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-3 rounded text-indigo-300 font-medium border border-gray-600">
-          + Apple / iCal (.ics)
+        <a href="${icsBlobUrl}" download="${event.title.replace(/\s+/g, '_')}.ics" class="bg-gray-700 hover:bg-gray-600 text-xs py-2 px-2 rounded text-indigo-300 font-medium border border-gray-600">
+          + Apple / iCal
         </a>
       `;
 
