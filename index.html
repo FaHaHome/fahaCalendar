@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <!-- Tailwind CSS for Responsive UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Add To Calendar Button Widget -->
+  <!-- Add To Calendar Button Widget (v5 JS Script) -->
   <script src="https://cdn.jsdelivr.net/npm/add-to-calendar-button@5" async defer></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-3 md:p-6">
@@ -42,7 +42,7 @@
       <div id="modalDescription" class="text-gray-300 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto pr-2 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50"></div>
       
       <div class="pt-2 space-y-3">
-        <!-- Direct Discord Event RSVP (Opens in Dedicated Window / App) -->
+        <!-- Direct Discord Event RSVP (Opens in a NEW window/tab unconditionally) -->
         <a id="rsvpBtn" target="_blank" rel="noopener noreferrer" class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition shadow cursor-pointer">
           RSVP in Discord
         </a>
@@ -60,7 +60,7 @@
     </div>
   </div>
 
-  <!-- Create Event Modal (Add via Grid) -->
+  <!-- Create Event Modal -->
   <div id="createModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
     <div class="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700 shadow-xl space-y-4">
       <h2 class="text-xl font-bold text-white">Schedule New Event</h2>
@@ -133,15 +133,10 @@
       if (!text) return 'No description provided.';
 
       return text
-        // Bold formatting **text**
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Italic formatting *text* or _text_
         .replace(/(\*|_)(.*?)\1/g, '<em>$2</em>')
-        // Convert Discord markdown links [Text](URL) -> <a href="URL" target="_blank">Text</a>
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
-        // Convert Discord raw enclosed links <URL> -> <a href="URL" target="_blank">URL</a>
         .replace(/<(https?:\/\/[^>]+)>/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$1</a>')
-        // Convert standalone URLs
         .replace(/(^|[^"])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-400 underline hover:text-indigo-300">$2</a>');
     }
 
@@ -149,37 +144,27 @@
       document.getElementById('modalTitle').innerText = event.title;
       document.getElementById('modalLocation').innerText = event.extendedProps.location;
 
-      // 1. Framed text with Discord Markdown link parsing
       const rawDesc = event.extendedProps.description || '';
       document.getElementById('modalDescription').innerHTML = parseDiscordMarkdown(rawDesc);
 
-      // 2. RSVP Deep Link handling (Launches desktop/mobile app or opens web in new window)
+      // RSVP Link Fix: Direct anchor href with target="_blank" guarantees launching a new window/tab
       const rsvpUrl = event.extendedProps.rsvpUrl;
-      const deepLinkUrl = rsvpUrl ? rsvpUrl.replace('https://discord.com/', 'discord://discord.com/') : '#';
       const rsvpBtn = document.getElementById('rsvpBtn');
-      
-      rsvpBtn.onclick = function(e) {
-        e.preventDefault();
-        // Attempt desktop app protocol launch
-        window.location.href = deepLinkUrl;
-        
-        // Fallback: Open web version in a NEW tab/window if the desktop app doesn't intercept
-        setTimeout(() => {
-          window.open(rsvpUrl, '_blank', 'noopener,noreferrer');
-        }, 800);
-      };
+      rsvpBtn.href = rsvpUrl || '#';
+      rsvpBtn.onclick = null; // Remove dynamic click handlers to ensure default target="_blank" behavior runs
 
-      // 3. Add to Personal Calendar Button Integration (Explicit Render Fix)
+      // Calendar Button Fix: Standard HTML properties without breaking JS quotes
       const startDate = event.start ? event.start.toISOString().split('T')[0] : '';
       const startTime = event.start ? event.start.toTimeString().split(' ')[0].substring(0, 5) : '';
       const endDate = event.end ? event.end.toISOString().split('T')[0] : startDate;
       const endTime = event.end ? event.end.toTimeString().split(' ')[0].substring(0, 5) : startTime;
+      const cleanDesc = rawDesc.replace(/"/g, '&quot;').replace(/\n/g, ' ');
 
       const calContainer = document.getElementById('addToCalContainer');
       calContainer.innerHTML = `
         <add-to-calendar-button
           name="${event.title}"
-          description="${rawDesc.replace(/"/g, '&quot;').replace(/\n/g, ' ')}"
+          description="${cleanDesc}"
           location="${event.extendedProps.location}"
           startDate="${startDate}"
           startTime="${startTime}"
@@ -192,10 +177,12 @@
         ></add-to-calendar-button>
       `;
 
-      // Trigger button renderer manually for dynamically added elements
-      if (window.atcb_action) {
-        window.atcb_action();
-      }
+      // Explicitly trigger the Web Component renderer after injecting innerHTML
+      setTimeout(() => {
+        if (window.atcb_action) {
+          window.atcb_action();
+        }
+      }, 50);
 
       document.getElementById('eventModal').classList.remove('hidden');
     }
